@@ -1,44 +1,90 @@
+#include <WiFi.h>
+#include <WebServer.h>
 
-<!DOCTYPE html>
-<html>
-<head>
-  <title>OKENY IVAN- - LED Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: Arial; background: #121212; color: white; text-align: center; }
-    h2 { color: #00ffc3; }
-    button {
-      padding: 14px 28px; margin: 10px;
-      font-size: 18px; border: none;
-      border-radius: 6px; cursor: pointer;
-    }
-    .on { background-color: #00e676; color: white; }
-    .off { background-color: #ff1744; color: white; }
-    footer { margin-top: 50px; font-size: 14px; color: #aaa; }
-  </style>
-</head>
-<body>
-  <h2>OKENY IVAN- LED Control Dashboard</h2>
+// WiFi credentials
+const char* ssid = "eduroam";
+const char* password = "Bravan157.";
 
-  <div>
-    <button class="on" onclick="toggleLED(1, 'on')">LED1 ON</button>
-    <button class="off" onclick="toggleLED(1, 'off')">LED1 OFF</button><br>
+// Create a web server on port 80
+WebServer server(80);
 
-    <button class="on" onclick="toggleLED(2, 'on')">LED2 ON</button>
-    <button class="off" onclick="toggleLED(2, 'off')">LED2 OFF</button><br>
+// Pin to control the transistor (which switches the LEDs)
+const int ledControlPin = 23; //(D23)
 
-    <button class="on" onclick="toggleLED(3, 'on')">LED3 ON</button>
-    <button class="off" onclick="toggleLED(3, 'off')">LED3 OFF</button>
-  </div>
+void handleRoot() {
+  String html = R"rawliteral(
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>BRAVAN Home Lighting</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { font-family: Arial; text-align: center; padding: 20px; background: #f0f0f0; }
+        h1 { color: #333; }
+        .btn { padding: 15px 30px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; }
+        .on { background-color: #4CAF50; color: white; }
+        .off { background-color: #f44336; color: white; }
+      </style>
+    </head>
+    <body>
+      <h1>Engineering Team 2 Lighting Control</h1>
+      <button class="btn on" onclick="toggleLED('on')">Turn ON</button>
+      <button class="btn off" onclick="toggleLED('off')">Turn OFF</button>
 
-  <footer>
-    <p>Powered by OKENY IVAN- | Built with ⚡ by jeft Systems Team</p>
-  </footer>
+      <script>
+        function toggleLED(state) {
+          fetch('/led?state=' + state)
+            .then(response => response.text())
+            .then(data => console.log(data));
+        }
+      </script>
+    </body>
+    </html>
+  )rawliteral";
 
-  <script>
-    function toggleLED(led, state) {
-      fetch(`/led${led}?state=${state}`);
-    }
-  </script>
-</body>
-</html>
+  server.send(200, "text/html", html);
+}
+
+void handleLEDControl() {
+  String state = server.arg("state");
+  if (state == "on") {
+    digitalWrite(ledControlPin, HIGH);
+    server.send(200, "text/plain", "LEDs turned ON");
+  } else if (state == "off") {
+    digitalWrite(ledControlPin, LOW);
+    server.send(200, "text/plain", "LEDs turned OFF");
+  } else {
+    server.send(400, "text/plain", "Invalid command");
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // Configure the LED control pin
+  pinMode(ledControlPin, OUTPUT);
+  digitalWrite(ledControlPin, LOW); // Initially OFF
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to Wi-Fi");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // Route handling
+  server.on("/", handleRoot);
+  server.on("/led", handleLEDControl);
+
+  // Start the server
+  server.begin();
+  Serial.println("Web server started");
+}
+
+void loop() {
+  server.handleClient();
+}
